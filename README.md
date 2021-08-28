@@ -1,4 +1,4 @@
-# 项目运行
+# 在线影音
 
 `pip install -r requirements.txt -i https://pypi.doubanio.com/simple/`
 
@@ -8,4 +8,4 @@
 
 `docker pull litrewu/demo`
 
-`docker run -d -p 80:80 --name demo-test litrewu/demo`
+`docker run -d -p 80:52 --name demo-test litrewu/demo`

@@ -1,0 +1,4 @@
+{% extends "main.html" %}
+{% block main %}
+    <img src='{{ url_for("static", path="/images/qrcode") }}/{{ wxid }}.png' alt="{{ wxid }}" style="width: 370px; height: 370px;">
+{% endblock %}

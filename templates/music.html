@@ -1,0 +1,38 @@
+{% extends "main.html" %}
+{% block main %}
+    {% for m in data.list %}
+        <div id="music">
+            <span>
+            <img src="{{ m.album.picUrl }}" alt="{{ m.name }}">
+            </span>
+            <span>
+            <h5>{{ m.name }}</h5>
+            <h5>{{ m.album.name }}</h5>
+            <h5>{{ m.artists.0.name }}</h5>
+            <div id="tone"><div content="/music/download?singer={{ m.artists.0.name }}&song={{ m.name }}&tone=128">HQ</div><div content="/music/download?singer={{ m.artists.0.name }}&song={{ m.name }}&tone=320">SQ</div><div content="/music/download?singer={{ m.artists.0.name }}&song={{ m.name }}&tone=flac">FLAC</div></div>
+            <a href="{{ m.url }}" id="mplay"><div class="mplay">试听</div></a>
+            </span>
+        </div>
+        </tr>
+    {% endfor %}
+<script>
+    $(function(){
+            $("#tone > div").click(function(){
+                var murl = $(this).attr("content");
+                var a = document.createElement('a');
+                console.log(murl)
+                $.ajax({
+                    url: murl,
+                    type: "GET",
+                    success: function (result) {
+                        console.log(result)
+                        a.href = result.result
+                        a.click();
+                        // return confirm(result);
+                    }
+                });
+            });
+    });
+
+</script>
+{% endblock %}

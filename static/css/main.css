@@ -1,0 +1,264 @@
+* {box-sizing: border-box;}
+
+body {
+    width: 100%;
+    margin: 0;
+    font-family: Arial;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+
+}
+
+/* nav {
+    height: 80px;
+    width: 100%;
+    background-color: lightseagreen;
+    margin: 0;
+    top: 0;
+    position: fixed;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+}
+
+nav h2 {
+    color: white;
+}
+
+.input {
+    height: 23px;
+    width: 150px;
+    margin: auto;
+    border: 2px solid white;
+    border-radius: 5px;
+}
+
+.input:focus {
+    outline: none;
+    border-style: solid;
+    border-color: lightcoral;
+    /*box-shadow: 0px 0px 1px white;*/
+/* }  */ 
+
+/* button {
+    height: 30px;
+    width: 52px;
+    margin: auto;
+    color: white;
+    border: 0;
+    background-color: cadetblue;
+    border-radius: 5px;
+}
+
+button:hover {
+    outline: none;
+    background-color: lightcoral;
+} */
+
+main {
+    width: 100%;
+    margin-top: 20px;
+    margin-bottom: 30px;
+    display:flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    padding: 6px auto;
+    justify-content: center;
+    /* background-image: url("/static/images/bg.jpg"); */
+    background-attachment: fixed;
+}
+
+.content {
+    background-color: white;
+    width: 300px;
+    margin: 5px;
+    /* padding: 2px; */
+}
+.content img {
+    width: 100%;
+}
+.content p {
+    margin: auto;
+}
+.content a {
+    margin: 2px 2px;
+    font-size: 15px;
+    color: #eb7350;
+    text-decoration: none;
+
+}
+
+#music {
+    width: 370px;
+    display: flex;
+    position: relative;
+}
+#music img{
+    width: 150px;
+}
+#music h5{
+    margin: 2px 0px 5px 10px;
+    font-size: 12px;
+}
+#tone {
+    position: absolute;
+    bottom: 50px;
+    margin: 2px 0px 2px 10px;
+    font-size: 12px;
+    display: flex;
+    justify-content: left;
+    height: 20px;
+    width: 100px;
+}
+#tone a {
+    text-decoration: none;
+}
+#tone div {
+    border-radius: 3px;
+    color: coral;
+    margin: 0px 2px 0px 0px;
+    text-align: center;
+    line-height: 20px;
+    width: 35px;
+    border: lightgrey solid 1px;
+}
+#tone div:hover{
+    background-color: lightcoral;
+    color: white;
+    border:white solid 1px;
+}
+#mplay {
+    margin: 2px 0px 2px 10px;
+    font-size: 12px;
+    color: white;
+    text-decoration: none;
+    position: absolute;
+    bottom: 5px;
+}
+.mplay {
+    height: 25px;
+    width: 50px;
+    border-radius: 3px;
+    margin: auto 0;
+    color: tomato;
+    text-align: center;
+    line-height: 25px;
+    border: lightgrey solid 1px;
+}
+.mplay:hover {
+    background-color: lightcoral;
+    color: white;
+    border:white solid 1px;
+}
+.des {
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-wrap:wrap;
+    overflow-y: scroll;
+    line-height: 100%;
+    /* height: auto; */
+    height: 300px;
+    /*width: 300px;*/
+}
+.des a {
+    white-space: nowrap;
+    display: inline-block;
+    height: 25px;
+}
+.des a > div {
+    width: auto;
+}
+.link {
+    height: 25px;
+    width: 80px;
+    border-radius: 3px;
+    margin: auto 0;
+    text-align: center;
+    line-height: 25px;
+    border: lightgrey solid 1px;
+}
+.link:hover{
+    background-color: lightcoral;
+    color: white;
+    border:white solid 1px;
+}
+#footer {
+    height: 30px;
+    margin: 0 auto;
+    width: 100%;
+    background-color: white;
+    border-top: 1px #dadada solid;
+    position: fixed;
+    display: flex;
+    text-align: center;
+    vertical-align: middle;
+    justify-content: space-around;
+    bottom: 0;
+}
+
+footer p {
+    display: inline-block;
+    vertical-align:middle;
+    margin: auto;
+    color: #666666;
+    font-size: 10px;
+}
+
+div.search {
+  /* opacity:0.8; */
+  padding: 30px 0;
+  margin: 0;
+  top: 0;
+  right: 0;
+  position: fixed;
+  display: flex;
+}
+form {
+  position: relative;
+  width: 42px;
+  margin: 0 auto;
+}
+
+.d6 {
+  background:white;
+}
+.d6 form {
+  height: 42px;
+}
+.d6 input {
+  height: 100%;
+  width: 0;
+  padding: 0 42px 0 15px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  outline: none;
+  background: transparent;
+  transition: .4s cubic-bezier(0, 0.8, 0, 1);
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 2;
+}
+.d6 input:focus {
+  width: 300px;
+  z-index: 1;
+  border-bottom: 2px solid #F9F0DA;
+}
+.d6 button {
+  /* background:#A3D0C3; */
+  background:#48D1CC;
+  color:white;
+  border: none;
+  height: 42px;
+  width: 42px;
+  position: absolute;
+  top: 0;
+  right: 0;
+  cursor: pointer;
+}
+.d6 button:before {
+  font-size: 16px;
+  color: #F9F0DA;
+}

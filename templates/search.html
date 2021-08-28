@@ -1,0 +1,21 @@
+{% extends "main.html" %}
+{% block main %}
+    {% for result in result_list %}
+        <div class="content">
+            <img src="{{ result.cover }}" alt="{{ result.name }}">
+            <h3>{{ result.name }} {{ result.type }}</h3>
+            {% for i in result.info %}
+            <p>{{ i }}{{ result.info[i] }}</p>
+            <br/>
+            {% endfor %}
+            <br/>
+            <div class="des">
+                {% for k in result.play_list %}
+                <a href="https://dmjx.m3u8.tv/?url={{ k.url }}" style="white-space: nowrap;">
+                    <div class="link">{{ k.name }}</div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+    {% endfor %}
+{% endblock %}

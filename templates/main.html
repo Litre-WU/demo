@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="referrer" content="webkit">
+    <meta name="referrer" content="always">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <link rel="stylesheet" href='{{ url_for("static", path="/css/main.css")}}'>
+    {% block head %}
+    {% endblock %}
+    <title>
+        {% block title %}
+            {{ title }}
+        {% endblock %}
+    </title>
+</head>
+<script src='{{ url_for("static", path="/js/jquery.min.js")}}'></script>
+<body>
+{% block nav %}
+<div class="search d6">
+	<form action="{{ url }}" , method="GET">
+	  <input type="text" placeholder="搜索从这里开始..." name="keyword" value="">
+	  <button type="submit">搜索</button>
+	</form>
+</div>
+{% endblock %}
+<main>
+    {% block main %}
+    {% endblock %}
+</main>
+<footer id="footer"></footer>
+<script>
+    jQuery.support.cors = true;
+    $.ajax({
+        url: "/adage/",
+        type: "GET",
+        success: function (result) {
+            // console.log(result)
+            var r = Math.round(Math.random() * 7);
+            $("#footer").html("<p>" + result[r].adage + " ——" + result[r].author + "</p>");
+        }
+    });
+</script>
+{#<footer><p>Litre</p></footer>#}
+</body>
+</html>

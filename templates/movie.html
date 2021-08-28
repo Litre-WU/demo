@@ -1,0 +1,20 @@
+{% extends "main.html" %}
+{% block main %}
+    {% for m in result.subject_collection_items %}
+        <div class="content">
+            <a href="/movie/search?keyword={{ m.title }}">
+                <img src='{{ url_for("static", path="/images/douban50") }}/{{ m.id }}.png' alt='{{ m.title }}'>
+                <h3>片名：{{ m.title }}</h3>
+                <p>导演：{{ m.directors.0 }}</p>
+                <p>演员：{% for a in m.actors %} {{ a }}{% endfor %}</p>
+                <p>年代：{{ m.year }}</p>
+                <p>标签：{{ m.info }}</p>
+                <p>评分：{{ m.rating.value }}</p>
+                <p>评分人数：{{ m.rating.count }}</p>
+                {% if m.comments %}
+                    <p>热评：{{ m.comments.0.comment }}</p>
+                {% endif %}
+            </a>
+        </div>
+    {% endfor %}
+{% endblock %}

@@ -6,7 +6,7 @@
 
 `pip install -r requirements.txt -i https://pypi.doubanio.com/simple/`
 
-`uvicorn main:app`
+`uvicorn demo:app`
 
 # docker启动项目
 

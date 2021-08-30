@@ -116,11 +116,13 @@ async def movie_search(request: Request, keyword: Optional[str] = None):
     # result_list = await qq_video_search(**{"keyword": keyword})
     # result_list = await yk_video_search(**{"keyword": keyword})
     # result_list = await aqy_video_search(**{"keyword": keyword})
+    # result_list = await sohu_video_serach(**{"keyword": keyword})
 
     tasks = [
         asyncio.create_task(qq_video_search(**{"keyword": keyword})),  # 腾讯
-        asyncio.create_task(yk_video_search(**{"keyword": keyword})),  # 优酷
-        asyncio.create_task(aqy_video_search(**{"keyword": keyword})),  # 爱奇艺
+        # asyncio.create_task(yk_video_search(**{"keyword": keyword})),  # 优酷
+        # asyncio.create_task(aqy_video_search(**{"keyword": keyword})),  # 爱奇艺
+        asyncio.create_task(sohu_video_serach(**{"keyword": keyword})),  # 搜狐
     ]
     result = await asyncio.gather(*tasks)
     result_list = []
@@ -268,7 +270,7 @@ async def qq_video_search(**kwargs):
     } for div in divs]
     tasks = [asyncio.create_task(qq_video_play_list(**{"id": t["id"]})) for t in data_list]
     result = await asyncio.gather(*tasks)
-    data_list = [d | {"play_list": t[d["id"]]} for d in data_list for t in result if t and t.get(d["id"], "")]
+    data_list = [d | {"play_list": {"腾讯": t[d["id"]]}} for d in data_list for t in result if t and t.get(d["id"], "")]
     return data_list
 
 
@@ -377,7 +379,7 @@ async def yk_video_play_list(**kwargs):
         {
             "name": r.get("title", ""),
             "url": f'https://v.youku.com/v_show/id_{r.get("videoId", "")}.html' if r.get("videoId",
-                                                                                         "") else "XMzk1NjM1MjAw",
+                                                                                         "") else 'https://v.youku.com/v_show/id_XMzk1NjM1MjAw.html',
         } for r in res["serisesList"] if res.get("serisesList", "")
     ]
     return {kwargs.get("id", ""): data_list}
@@ -395,7 +397,7 @@ async def aqy_video_search(**kwargs):
         }
     }
     res = await pub_http(**meta)
-    if not res:return None
+    if not res: return None
     res = etree.HTML(res.decode()).xpath('//body/script[1]/text()')[0].split("__=")[1].split(";(")[0]
     res = loads(res)
     data_list = [
@@ -454,8 +456,48 @@ async def aqy_video_play_list(**kwargs):
     } for r in res["data"]["videos"]]
     if not kwargs.get("size", ""):
         data_list = await aqy_video_play_list(**{"id": kwargs.get("id", ""), "size": total})
-        data_list = {kwargs.get("id", ""):data_list}
+        data_list = {kwargs.get("id", ""): data_list}
         return data_list
+    return data_list
+
+
+# 搜狐视频
+async def sohu_video_serach(**kwargs):
+    meta = {
+        "url": "https://pv.sohu.com/suv/",
+    }
+    res = await pub_http(**meta)
+    suv = res.decode().split('"')[-2]
+    meta = {
+        "url": "https://so.tv.sohu.com/mts",
+        "params": {
+            "wd": kwargs.get("keyword", "斗罗大陆"),
+            "time": int(time() * 1000)
+        },
+        "headers": {
+            "Cookie": f"SUV={suv};",
+        }
+    }
+    res = await pub_http(**meta)
+    divs = etree.HTML(res.decode()).xpath('//div[@class="area "]')
+    divs += etree.HTML(res.decode()).xpath('//div[@class="area  special"]')
+    data_list = [{
+        "cover": "https:" + div.xpath('div/div/div/a/img/@src')[0],
+        "name": div.xpath('div/div[@class="center"]/div/h2/a/@title')[0],
+        "type": div.xpath('div/div[@class="center"]/div/span/em/text()')[0],
+        "info": {
+                    "".join(x.xpath('text()')).split("：")[0]: " ".join(x.xpath('a/text()')) for x in
+                    div.xpath('div/div[@class="center"]/ul/li/div')
+                } | {div.xpath('div/div[@class="center"]/p/text()')[0].split("：")[0].strip():
+                         div.xpath('div/div[@class="center"]/p/text()')[0].split("：")[1].strip()},
+        "play_list": dict(zip(div.xpath('div/div[@class="center"]/div[@class="lan_resource"]/div/div/ul/li/em/text()'),
+                              [[{
+                                  "name": a.xpath('text()')[0],
+                                  "url": "https:" + a.xpath('@href')[0]
+                              } for a in div.xpath('div//a') if a.xpath('@href')[0].strip("#")] for div in
+                                  div.xpath('div/div[@class="center"]/div[@class="lan_resource"]/div')[1:]]
+                              )),
+    } for div in divs]
     return data_list
 
 
@@ -468,10 +510,13 @@ if __name__ == '__main__':
     # rs = asyncio.run(qq_video_search(**{"keyword": "脱口秀大会"}))
     # rs = asyncio.run(qq_video_search(**{"keyword": "当男人恋爱时"}))
     # rs = asyncio.run(yk_video_search(**{"keyword": "这！就是街舞 第四季"}))
-    # rs = asyncio.run(yk_video_play_list(**{"keyword": "这！就是街舞 第四季"}))
-    rs = asyncio.run(aqy_video_search(**{"keyword": "中国好声音"}))
+    # rs = asyncio.run(yk_video_search(**{"keyword": "斗罗大陆"}))
+    # rs = asyncio.run(yk_video_play_list(**{"id": "cedb35b8e3574edebf39"}))
+    # rs = asyncio.run(aqy_video_search(**{"keyword": "中国好声音"}))
     # rs = asyncio.run(aqy_video_search(**{"keyword": "柯南"}))
+    # rs = asyncio.run(aqy_video_search(**{"keyword": "斗罗大陆"}))
     # rs = asyncio.run(aqy_video_play_list(**{"id": "106741901"}))
     # rs = asyncio.run(aqy_video_play_list(**{"id": "5729569838039801"}))
+    rs = asyncio.run(sohu_video_serach(**{"keyword": "脱口秀大会"}))
     # rs = asyncio.run(music_download(Request, singer="周杰伦", song="告白气球", tone="flac"))
     print(rs)

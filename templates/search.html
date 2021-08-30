@@ -10,10 +10,13 @@
             {% endfor %}
             <br/>
             <div class="des">
-                {% for k in result.play_list %}
-                <a href="https://dmjx.m3u8.tv/?url={{ k.url }}" style="white-space: nowrap;">
-                    <div class="link">{{ k.name }}</div>
-                </a>
+                {% for p in result.play_list %}
+                    <span style="margin: 8px 2px auto;height: 25px;width: 100%;">{{ p }}</span>
+                    {% for k in result.play_list[p] %}
+                    <a href="https://dmjx.m3u8.tv/?url={{ k.url }}" style="white-space: nowrap;">
+                        <div class="link">{{ k.name }}</div>
+                    </a>
+                    {% endfor %}
                 {% endfor %}
             </div>
         </div>

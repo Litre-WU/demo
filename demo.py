@@ -120,7 +120,7 @@ async def movie_search(request: Request, keyword: Optional[str] = None):
 
     tasks = [
         asyncio.create_task(qq_video_search(**{"keyword": keyword})),  # 腾讯
-        # asyncio.create_task(yk_video_search(**{"keyword": keyword})),  # 优酷
+        asyncio.create_task(yk_video_search(**{"keyword": keyword})),  # 优酷
         # asyncio.create_task(aqy_video_search(**{"keyword": keyword})),  # 爱奇艺
         asyncio.create_task(sohu_video_serach(**{"keyword": keyword})),  # 搜狐
     ]
@@ -305,14 +305,18 @@ async def qq_video_play_list(**kwargs):
     res = await pub_http(**meta)
     res = loads(res.decode())
     if res["data"]["module_list_datas"]:
-        play_list = [{"name": x["item_params"]["play_title"],
+        play_list = [{
+            "title": x["item_params"]["play_title"],
+            "name": x["item_params"]["title"],
                       "url": f'https://v.qq.com/x/cover/{_id}/{x["item_params"]["vid"]}.html'}
                      for x in
                      res["data"]["module_list_datas"][0]["module_datas"][0][
                          "item_data_lists"]["item_datas"] if x["item_params"].get("play_title", "")]
         if not play_list:
             play_list = [
-                {"name": x["item_params"]["title"], "url": f'https://v.qq.com/x/cover/{x["item_params"]["cid"]}.html'}
+                {
+                    "title": x["item_params"]["title"],
+                    "name": x["item_params"]["title"], "url": f'https://v.qq.com/x/cover/{x["item_params"]["cid"]}.html'}
                 for x in
                 res["data"]["module_list_datas"][0]["module_datas"][0][
                     "item_data_lists"]["item_datas"] if x["item_params"].get("cid", "")]
@@ -355,8 +359,9 @@ async def yk_video_search(**kwargs):
     } for r in res["pageComponentList"] if r.get("commonData", "")]
     tasks = [asyncio.create_task(yk_video_play_list(**{"id": d.get("id", ""), "keyword": d.get("name", "")})) for d in
              data_list]
+    # print(data_list)
     result = await asyncio.gather(*tasks)
-    data_list = [d | {"play_list": t[d["id"]]} for d in data_list for t in result if t.get(d["id"], "")]
+    data_list = [d | {"play_list": {"优酷": t[d["id"]]}} for d in data_list for t in result if t.get(d["id"], "")]
     return data_list
 
 
@@ -377,7 +382,8 @@ async def yk_video_play_list(**kwargs):
     res = loads(res.decode())
     data_list = [
         {
-            "name": r.get("title", ""),
+            "title": r.get("title", ""),
+            "name": r.get("displayName", ""),
             "url": f'https://v.youku.com/v_show/id_{r.get("videoId", "")}.html' if r.get("videoId",
                                                                                          "") else 'https://v.youku.com/v_show/id_XMzk1NjM1MjAw.html',
         } for r in res["serisesList"] if res.get("serisesList", "")
@@ -510,8 +516,8 @@ if __name__ == '__main__':
     # rs = asyncio.run(qq_video_search(**{"keyword": "脱口秀大会"}))
     # rs = asyncio.run(qq_video_search(**{"keyword": "当男人恋爱时"}))
     # rs = asyncio.run(yk_video_search(**{"keyword": "这！就是街舞 第四季"}))
-    # rs = asyncio.run(yk_video_search(**{"keyword": "斗罗大陆"}))
-    # rs = asyncio.run(yk_video_play_list(**{"id": "cedb35b8e3574edebf39"}))
+    # rs = asyncio.run(yk_video_search(**{"keyword": "柯南"}))
+    # rs = asyncio.run(yk_video_play_list(**{"id": "cc003400962411de83b1"}))
     # rs = asyncio.run(aqy_video_search(**{"keyword": "中国好声音"}))
     # rs = asyncio.run(aqy_video_search(**{"keyword": "柯南"}))
     # rs = asyncio.run(aqy_video_search(**{"keyword": "斗罗大陆"}))

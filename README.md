@@ -20,11 +20,13 @@
 
 ![Image text](https://github.com/Litre-WU/demo/blob/master/static/images/%E6%95%88%E6%9E%9C%E5%9B%BE2.png)
 
+# 运行项目
+
 `pip install -r requirements.txt -i https://pypi.doubanio.com/simple/`
 
 `uvicorn demo:app`
 
-# docker启动项目
+# docker运行项目
 
 `docker pull litrewu/demo`
 

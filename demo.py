@@ -18,10 +18,11 @@ from random import randint
 from lxml import etree
 from json import loads, dumps
 from math import ceil
-import platform
+from sys import platform
 import os
 
-if platform.system() == "Windows":
+if platform == "win32":
+    asyncio.set_event_loop(asyncio.ProactorEventLoop())
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 semaphore = asyncio.Semaphore(50)

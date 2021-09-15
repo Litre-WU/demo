@@ -25,9 +25,9 @@ from Cryptodome.Cipher import AES
 from binascii import b2a_hex, a2b_hex
 from loguru import logger
 
-# logger.add(f'{os.path.basename(__file__)[:-3]}.log', rotation='200 MB', compression='zip', enqueue=True, serialize=False, encoding='utf-8', retention='7 days')
-logger.add(f'{os.path.basename(__file__)[:-3]}.log', rotation='200 MB', enqueue=True, serialize=False, encoding='utf-8',
-           retention='7 days')
+
+logger.add(f'{os.path.basename(__file__)[:-3]}.log', rotation='200 MB', compression='zip', enqueue=True, serialize=False, encoding='utf-8', retention='7 days')
+
 
 if platform == "win32":
     asyncio.set_event_loop(asyncio.ProactorEventLoop())

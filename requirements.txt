@@ -7,3 +7,6 @@ user-agent
 jinja2
 aiofiles
 uvicorn
+pycryptodomex
+brotlipy
+loguru

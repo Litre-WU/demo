@@ -14,12 +14,20 @@ import aiohttp
 import requests
 from user_agent import generate_user_agent
 from time import time, sleep
-from random import randint
+from random import randint, sample
 from lxml import etree
 from json import loads, dumps
 from math import ceil
 from sys import platform
 import os
+import uuid
+from Cryptodome.Cipher import AES
+from binascii import b2a_hex, a2b_hex
+from loguru import logger
+
+# logger.add(f'{os.path.basename(__file__)[:-3]}.log', rotation='200 MB', compression='zip', enqueue=True, serialize=False, encoding='utf-8', retention='7 days')
+logger.add(f'{os.path.basename(__file__)[:-3]}.log', rotation='200 MB', enqueue=True, serialize=False, encoding='utf-8',
+           retention='7 days')
 
 if platform == "win32":
     asyncio.set_event_loop(asyncio.ProactorEventLoop())
@@ -45,6 +53,51 @@ douban50 = os.path.join(os.getcwd(), 'static/images/douban50/')
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 templates = Jinja2Templates(directory="templates")
+
+
+# 加密
+async def encrypt(*args, **kwargs):
+    key, content = None, None
+    if args:
+        if len(args) == 2:
+            key, content = str(args[0]), str(args[1])
+        else:
+            content = str(kwargs)
+    else:
+        if kwargs.get("_key", ""):
+            key = str(kwargs.popitem()[-1])
+            content = str(kwargs)
+        else:
+            content = str(kwargs)
+    if not content: return False
+    add = 16 - (len(content.encode()) % 16) if len(content.encode()) % 16 else 0
+    content = content + ' ' * add
+    # 加密
+    key = key if key else "".join(sample('0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ', 16))
+    encrypt_value = b2a_hex(AES.new(key.encode(), AES.MODE_ECB).encrypt(content.encode())).decode()
+    return {"key": key, "encrypt_value": encrypt_value}
+
+
+# 解密
+async def decrypt(*args, **kwargs):
+    key, encrypt_value = args if args else list(kwargs.items())[0]
+    if key and encrypt_value:
+        decrypt_value = AES.new(key.encode(), AES.MODE_ECB).decrypt(a2b_hex(encrypt_value)).decode().strip()
+        return decrypt_value
+    else:
+        return False
+
+
+# 生成token
+async def token():
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, "".join(str(uuid.uuid1()).split("-"))))
+
+
+# 签名
+async def sign(**kwargs):
+    _key = "r4ZxqaG7tcP5SjLU"
+    encrypt_value = await encrypt(**{**kwargs, **{"_time": int(time.time()), "_key": _key}})
+    return encrypt_value["encrypt_value"]
 
 
 # 首页
@@ -94,19 +147,24 @@ async def movie(request: Request):
         }
     }
     res = await pub_http(**meta)
-    result = loads(res.decode())
-    for m in result["subject_collection_items"]:
-        os.makedirs(douban50, exist_ok=True)
-        img_name = douban50 + f'{m["id"]}.png'
-        if os.path.exists(img_name):
-            continue
-        img_url = m["cover"]["url"]
-        meta["url"] = img_url
-        res = await pub_http(**meta)
-        with open(img_name, "wb+") as f:
-            f.write(res)
-    context = {"request": request, 'title': "搜索", "url": "/movie/search", "result": result}
-    return templates.TemplateResponse("movie.html", context)
+    if not res: return None
+    try:
+        result = loads(res.decode())
+        for m in result["subject_collection_items"]:
+            os.makedirs(douban50, exist_ok=True)
+            img_name = douban50 + f'{m["id"]}.png'
+            if os.path.exists(img_name):
+                continue
+            img_url = m["cover"]["url"]
+            meta["url"] = img_url
+            res = await pub_http(**meta)
+            with open(img_name, "wb+") as f:
+                f.write(res)
+        context = {"request": request, 'title': "搜索", "url": "/movie/search", "result": result}
+        return templates.TemplateResponse("movie.html", context)
+    except Exception as e:
+        logger.info(f'movie {e}')
+        return JSONResponse({"code": 501, "msg": "服务异常", "result": res.decode()})
 
 
 # 电影搜索
@@ -121,7 +179,7 @@ async def movie_search(request: Request, keyword: Optional[str] = None):
 
     tasks = [
         asyncio.create_task(qq_video_search(**{"keyword": keyword})),  # 腾讯
-        asyncio.create_task(yk_video_search(**{"keyword": keyword})),  # 优酷
+        # asyncio.create_task(yk_video_search(**{"keyword": keyword})),  # 优酷
         # asyncio.create_task(aqy_video_search(**{"keyword": keyword})),  # 爱奇艺
         asyncio.create_task(sohu_video_serach(**{"keyword": keyword})),  # 搜狐
     ]
@@ -197,7 +255,7 @@ def pub_req(**kwargs):
                     kwargs["retry"] = retry
                     return pub_req(**kwargs)
     except Exception as e:
-        print(e)
+        logger.info(e)
         sleep(randint(1, 2))
         retry = kwargs.get("retry", 0)
         retry += 1
@@ -306,18 +364,14 @@ async def qq_video_play_list(**kwargs):
     res = await pub_http(**meta)
     res = loads(res.decode())
     if res["data"]["module_list_datas"]:
-        play_list = [{
-            "title": x["item_params"]["play_title"],
-            "name": x["item_params"]["title"],
+        play_list = [{"name": x["item_params"]["play_title"],
                       "url": f'https://v.qq.com/x/cover/{_id}/{x["item_params"]["vid"]}.html'}
                      for x in
                      res["data"]["module_list_datas"][0]["module_datas"][0][
                          "item_data_lists"]["item_datas"] if x["item_params"].get("play_title", "")]
         if not play_list:
             play_list = [
-                {
-                    "title": x["item_params"]["title"],
-                    "name": x["item_params"]["title"], "url": f'https://v.qq.com/x/cover/{x["item_params"]["cid"]}.html'}
+                {"name": x["item_params"]["title"], "url": f'https://v.qq.com/x/cover/{x["item_params"]["cid"]}.html'}
                 for x in
                 res["data"]["module_list_datas"][0]["module_datas"][0][
                     "item_data_lists"]["item_datas"] if x["item_params"].get("cid", "")]
@@ -360,9 +414,8 @@ async def yk_video_search(**kwargs):
     } for r in res["pageComponentList"] if r.get("commonData", "")]
     tasks = [asyncio.create_task(yk_video_play_list(**{"id": d.get("id", ""), "keyword": d.get("name", "")})) for d in
              data_list]
-    # print(data_list)
     result = await asyncio.gather(*tasks)
-    data_list = [d | {"play_list": {"优酷": t[d["id"]]}} for d in data_list for t in result if t.get(d["id"], "")]
+    data_list = [d | {"play_list": t[d["id"]]} for d in data_list for t in result if t.get(d["id"], "")]
     return data_list
 
 
@@ -383,8 +436,7 @@ async def yk_video_play_list(**kwargs):
     res = loads(res.decode())
     data_list = [
         {
-            "title": r.get("title", ""),
-            "name": r.get("displayName", ""),
+            "name": r.get("title", ""),
             "url": f'https://v.youku.com/v_show/id_{r.get("videoId", "")}.html' if r.get("videoId",
                                                                                          "") else 'https://v.youku.com/v_show/id_XMzk1NjM1MjAw.html',
         } for r in res["serisesList"] if res.get("serisesList", "")
@@ -392,7 +444,7 @@ async def yk_video_play_list(**kwargs):
     return {kwargs.get("id", ""): data_list}
 
 
-# 爱奇艺
+# 爱奇艺视频搜索
 async def aqy_video_search(**kwargs):
     meta = {
         "url": "https://m.iqiyi.com/search.html",
@@ -468,7 +520,7 @@ async def aqy_video_play_list(**kwargs):
     return data_list
 
 
-# 搜狐视频
+# 搜狐视频视频搜索
 async def sohu_video_serach(**kwargs):
     meta = {
         "url": "https://pv.sohu.com/suv/",
@@ -508,22 +560,133 @@ async def sohu_video_serach(**kwargs):
     return data_list
 
 
+# 比特英雄视频搜索
+async def bt_video_search(**kwargs):
+    meta = {
+        "url": "https://www.btdx8.com/",
+        "params": {
+            "s": kwargs.get("keyword", "")
+        }
+    }
+    res = await pub_http(**meta)
+    if not res: return None
+    # logger.info(res.decode())
+    divs = etree.HTML(res.decode()).xpath('//div[@id="content"]/div/div')
+    if not divs: return None
+    data_list = [{
+        "id": div.xpath('h3/a/@href')[0].split("/")[-1].split(".")[0],
+        "cover": div.xpath('a/img/@src')[0],
+        "name": "".join(div.xpath('h3//text()')),
+        "type": div.xpath('div/span/a/text()')[0],
+        "info": {
+                    x.split("：")[0]: x.split("：")[1] for x in div.xpath('div/span/text()') if "：" in x
+                } | {"简介": div.xpath('div/p/text()')[0]},
+    } for div in divs]
+    logger.info(data_list)
+    return data_list
+
+
+# 比特英雄播放列表
+async def bt_video_play_list(**kwargs):
+    meta = {
+        "url": f'https://www.btdx8.com/torrent/{kwargs.get("id", "dldl_2019")}.html',
+    }
+    res = await pub_http(**meta)
+    if not res: return None
+    # logger.info(res.decode())
+    play_list = {
+                    "磁力链接": [{"name": a.xpath('text()')[0].split("]")[-1].split(".")[0], "url": a.xpath('@href')[0]} for
+                             a in
+                             etree.HTML(res.decode()).xpath('//div[@id="zdownload"]/a')]} | {
+                    "荐片播放器": [{"name": a.xpath("text()")[0], "url": a.xpath("@href")[0].split("=")[-1]} for a in
+                              etree.HTML(res.decode()).xpath('//div[@id="play_list"]/a') if a.xpath("@href")]}
+    logger.info(play_list)
+    return play_list
+
+
+# 迅播
+async def xb_video(**kwargs):
+    meta = {
+        "url": f'https://www.imxbp.com/vodsearch/{kwargs.get("", "斗罗大陆")}----------{kwargs.get("page", "1")}---.html',
+    }
+    res = await pub_http(**meta)
+    if not res: return None
+    lis = etree.HTML(res.decode()).xpath('//ul[@class="searchmlist"]/li')
+    if not lis: return None
+    data_list = [
+        {
+            "id": li.xpath('div/h2/a/@href')[0].split("/")[-1].split(".")[0],
+            "cover": li.xpath('a/img/@src')[0],
+            "name": li.xpath('div/h2/a/text()')[0],
+            "type": "",
+            "info": {
+                x.split("：")[0]: x.split("：")[1] for x in li.xpath('div/p/text()')
+            }
+        } for li in lis
+    ]
+    if data_list:
+        tasks = [asyncio.create_task(xb_video_list(**{"id": data_list[i]["id"]})) for i in range(len(data_list))]
+        result_list = await asyncio.gather(*tasks)
+        data_list = [data | {"play_list": result[data["id"]]} for data in data_list for result in result_list if
+                     result.get(data["id"], "")]
+    return data_list
+
+
+# 迅播播放列表
+async def xb_video_list(**kwargs):
+    if not kwargs.get("id", ""): return None
+    meta = {
+        "url": f'https://www.imxbp.com/html/{kwargs.get("id", "")}.html'
+    }
+    res = await pub_http(**meta)
+    try:
+        data_list = [{"name": a.xpath('text()')[0], "id": a.xpath('@href')[0].split("/")[-1].split(".")[0]} for a in
+                     etree.HTML(res.decode()).xpath('//div[@class="content"]/div[@class="play-list"]/a')]
+        if data_list:
+            tasks = [asyncio.create_task(xb_video_link(**{"id": data_list[i]["id"]})) for i in range(len(data_list))]
+            result_list = await asyncio.gather(*tasks)
+            data_list = [data | {"url": result[data["id"]]} for data in data_list for result in result_list if
+                         result.get(data["id"], )]
+        return {kwargs.get("id", ""): data_list}
+    except Exception as e:
+        return None
+
+
+# 迅播播放链接
+async def xb_video_link(**kwargs):
+    if not kwargs.get("id", ""): return None
+    meta = {"url": f'https://www.imxbp.com/play/{kwargs.get("id", "")}.html'}
+    res = await pub_http(**meta)
+    try:
+        info = etree.HTML(res.decode()).xpath('//div[@class="player-box"]/script/text()')
+        info = info[0].split("_data=")[1] if info else ""
+        if not info: return None
+        return {kwargs.get("id", ""): loads(info).get("url", "")}
+    except Exception as e:
+        return None
+
+
 if __name__ == '__main__':
     # rs = asyncio.run(adage(Request))
-    # rs = asyncio.run(movie(Request))
+    rs = asyncio.run(movie(Request))
     # rs = asyncio.run(qq_video_search(**{"keyword": "斗罗大陆"}))
     # rs = asyncio.run(qq_video_search(**{"keyword": "这！就是街舞"}))
     # rs = asyncio.run(qq_video_play_list(**{"id": "m441e3rjq9kwpsc"}))
     # rs = asyncio.run(qq_video_search(**{"keyword": "脱口秀大会"}))
     # rs = asyncio.run(qq_video_search(**{"keyword": "当男人恋爱时"}))
     # rs = asyncio.run(yk_video_search(**{"keyword": "这！就是街舞 第四季"}))
-    # rs = asyncio.run(yk_video_search(**{"keyword": "柯南"}))
-    # rs = asyncio.run(yk_video_play_list(**{"id": "cc003400962411de83b1"}))
+    # rs = asyncio.run(yk_video_search(**{"keyword": "斗罗大陆"}))
+    # rs = asyncio.run(yk_video_play_list(**{"id": "cedb35b8e3574edebf39"}))
     # rs = asyncio.run(aqy_video_search(**{"keyword": "中国好声音"}))
     # rs = asyncio.run(aqy_video_search(**{"keyword": "柯南"}))
     # rs = asyncio.run(aqy_video_search(**{"keyword": "斗罗大陆"}))
     # rs = asyncio.run(aqy_video_play_list(**{"id": "106741901"}))
     # rs = asyncio.run(aqy_video_play_list(**{"id": "5729569838039801"}))
-    rs = asyncio.run(sohu_video_serach(**{"keyword": "脱口秀大会"}))
+    # rs = asyncio.run(sohu_video_serach(**{"keyword": "脱口秀大会"}))
+    # rs = asyncio.run(bt_video_search(**{"keyword": "斗罗大陆"}))
+    # rs = asyncio.run(bt_video_play_list(**{"id": "dldl_2019"}))
+    # rs = asyncio.run(xb_video(**{"keyword": "斗罗大陆"}))
+    # rs = asyncio.run(xb_video_list(**{"id": "401572"}))
+    # rs = asyncio.run(xb_video_link(**{"id": "402000-2-1"}))
     # rs = asyncio.run(music_download(Request, singer="周杰伦", song="告白气球", tone="flac"))
-    print(rs)
+    logger.info(rs)

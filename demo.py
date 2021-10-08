@@ -23,11 +23,14 @@ import os
 import uuid
 from Cryptodome.Cipher import AES
 from binascii import b2a_hex, a2b_hex
+from boltons.cacheutils import LRI, LRU
+import base64
 from loguru import logger
 
+douban_cache = LRU(max_size=50)
 
-logger.add(f'{os.path.basename(__file__)[:-3]}.log', rotation='200 MB', compression='zip', enqueue=True, serialize=False, encoding='utf-8', retention='7 days')
-
+logger.add(f'{os.path.basename(__file__)[:-3]}.log', rotation='200 MB', compression='zip', enqueue=True,
+           serialize=False, encoding='utf-8', retention='7 days')
 
 if platform == "win32":
     asyncio.set_event_loop(asyncio.ProactorEventLoop())
@@ -48,7 +51,6 @@ tags_metadata = [
 
 app = FastAPI(openapi_url="/api/v1/api.json", title="在线影音", openapi_tags=tags_metadata)
 
-douban50 = os.path.join(os.getcwd(), 'static/images/douban50/')
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -100,9 +102,18 @@ async def sign(**kwargs):
     return encrypt_value["encrypt_value"]
 
 
+# 日志
+async def log(request, **kwargs):
+    ritems = dict(request.items())
+    if not kwargs: kwargs = ""
+    log_info = f'{ritems["client"][0]} {ritems["method"]} {ritems["path"]} {ritems["type"]}/{ritems["http_version"]} {kwargs}'
+    logger.info(log_info)
+
+
 # 首页
 @app.get('/', response_class=HTMLResponse)
 async def index(request: Request):
+    await log(request)
     return templates.TemplateResponse("main.html", {"request": request, "title": "首页", "url": "/music/"})
 
 
@@ -133,6 +144,7 @@ async def adage(request: Request):
 # 电影
 @app.get("/movie/", response_class=HTMLResponse)
 async def movie(request: Request):
+    await log(request)
     meta = {
         "url": "https://frodo.douban.com/api/v2/subject_collection/movie_hot_gaia/items",
         "params": {
@@ -151,15 +163,11 @@ async def movie(request: Request):
     try:
         result = loads(res.decode())
         for m in result["subject_collection_items"]:
-            os.makedirs(douban50, exist_ok=True)
-            img_name = douban50 + f'{m["id"]}.png'
-            if os.path.exists(img_name):
-                continue
-            img_url = m["cover"]["url"]
-            meta["url"] = img_url
-            res = await pub_http(**meta)
-            with open(img_name, "wb+") as f:
-                f.write(res)
+            if not douban_cache.get(m["id"]):
+                meta["url"] = m["cover"]["url"]
+                res = await pub_http(**meta)
+                douban_cache[m["id"]] = base64.b64encode(res).decode()
+            m["imgB64"] = douban_cache[m["id"]]
         context = {"request": request, 'title': "搜索", "url": "/movie/search", "result": result}
         return templates.TemplateResponse("movie.html", context)
     except Exception as e:
@@ -170,6 +178,7 @@ async def movie(request: Request):
 # 电影搜索
 @app.get('/movie/search', response_class=HTMLResponse)
 async def movie_search(request: Request, keyword: Optional[str] = None):
+    await log(request, **{"keyword":keyword})
     if not keyword: return {"code": 401, "msg": "请输入关键字"}
 
     # result_list = await qq_video_search(**{"keyword": keyword})
@@ -196,6 +205,7 @@ async def movie_search(request: Request, keyword: Optional[str] = None):
 # 音乐
 @app.get('/music/', response_class=HTMLResponse)
 async def music(request: Request, keyword: Optional[str] = "周杰伦"):
+    await log(request, **{"keyword":keyword})
     meta = {
         "url": "http://121.37.209.113:8090/search",
         "params": {
@@ -218,6 +228,7 @@ async def music(request: Request, keyword: Optional[str] = "周杰伦"):
 @app.get('/music/download', response_class=JSONResponse)
 async def music_download(request: Request, singer: Optional[str] = None, song: Optional[str] = None,
                          tone: Optional[str] = None):
+    await log(request, **{"singer": singer, "song": song, "tone": tone})
     if not (singer and song and tone): return {"code": 401, "msg": "请输入关键字"}
     meta = {
         "url": "http://121.37.209.113:8090/song/find",
@@ -293,6 +304,7 @@ async def pub_http(**kwargs):
                         kwargs["retry"] = retry
                         return await pub_http(**kwargs)
     except Exception as e:
+        logger.info(f'pub_http {kwargs} {e}')
         sleep(randint(1, 2))
         retry = kwargs.get("retry", 0)
         retry += 1
@@ -538,26 +550,32 @@ async def sohu_video_serach(**kwargs):
         }
     }
     res = await pub_http(**meta)
-    divs = etree.HTML(res.decode()).xpath('//div[@class="area "]')
-    divs += etree.HTML(res.decode()).xpath('//div[@class="area  special"]')
-    data_list = [{
-        "cover": "https:" + div.xpath('div/div/div/a/img/@src')[0],
-        "name": div.xpath('div/div[@class="center"]/div/h2/a/@title')[0],
-        "type": div.xpath('div/div[@class="center"]/div/span/em/text()')[0],
-        "info": {
-                    "".join(x.xpath('text()')).split("：")[0]: " ".join(x.xpath('a/text()')) for x in
-                    div.xpath('div/div[@class="center"]/ul/li/div')
-                } | {div.xpath('div/div[@class="center"]/p/text()')[0].split("：")[0].strip():
-                         div.xpath('div/div[@class="center"]/p/text()')[0].split("：")[1].strip()},
-        "play_list": dict(zip(div.xpath('div/div[@class="center"]/div[@class="lan_resource"]/div/div/ul/li/em/text()'),
-                              [[{
-                                  "name": a.xpath('text()')[0],
-                                  "url": "https:" + a.xpath('@href')[0]
-                              } for a in div.xpath('div//a') if a.xpath('@href')[0].strip("#")] for div in
-                                  div.xpath('div/div[@class="center"]/div[@class="lan_resource"]/div')[1:]]
-                              )),
-    } for div in divs]
-    return data_list
+    if not res: return None
+    try:
+        divs = etree.HTML(res.decode()).xpath('//div[@class="area "]')
+        divs += etree.HTML(res.decode()).xpath('//div[@class="area  special"]')
+        data_list = [{
+            "cover": "https:" + div.xpath('div/div/div/a/img/@src')[0],
+            "name": div.xpath('div/div[@class="center"]/div/h2/a/@title')[0],
+            "type": div.xpath('div/div[@class="center"]/div/span/em/text()')[0],
+            "info": {
+                        "".join(x.xpath('text()')).split("：")[0]: " ".join(x.xpath('a/text()')) for x in
+                        div.xpath('div/div[@class="center"]/ul/li/div')
+                    } | {div.xpath('div/div[@class="center"]/p/text()')[0].split("：")[0].strip():
+                             div.xpath('div/div[@class="center"]/p/text()')[0].split("：")[1].strip()},
+            "play_list": dict(
+                zip(div.xpath('div/div[@class="center"]/div[@class="lan_resource"]/div/div/ul/li/em/text()'),
+                    [[{
+                        "name": a.xpath('text()')[0],
+                        "url": "https:" + a.xpath('@href')[0]
+                    } for a in div.xpath('div//a') if a.xpath('@href')[0].strip("#")] for div in
+                        div.xpath('div/div[@class="center"]/div[@class="lan_resource"]/div')[1:]]
+                    )),
+        } for div in divs]
+        return data_list
+    except Exception as e:
+        logger.info(f'sohu_video_serach {e}')
+        return None
 
 
 # 比特英雄视频搜索

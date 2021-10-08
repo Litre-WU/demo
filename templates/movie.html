@@ -3,7 +3,7 @@
     {% for m in result.subject_collection_items %}
         <div class="content">
             <a href="/movie/search?keyword={{ m.title }}">
-                <img src='{{ url_for("static", path="/images/douban50") }}/{{ m.id }}.png' alt='{{ m.title }}'>
+                <img src='data:text/css;base64,{{ m.imgB64 }}' alt='{{ m.title }}'>
                 <h3>片名：{{ m.title }}</h3>
                 <p>导演：{{ m.directors.0 }}</p>
                 <p>演员：{% for a in m.actors %} {{ a }}{% endfor %}</p>

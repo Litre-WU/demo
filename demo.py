@@ -111,14 +111,14 @@ async def log(request, **kwargs):
 
 
 # 首页
-@app.get('/', response_class=HTMLResponse)
+@app.get('/', response_class=HTMLResponse, tags=["首页"])
 async def index(request: Request):
     await log(request)
     return templates.TemplateResponse("main.html", {"request": request, "title": "首页", "url": "/music/"})
 
 
 # 格言
-@app.get('/adage/')
+@app.get('/adage/', tags=["格言"])
 async def adage(request: Request):
     meta = {
         "url": "https://sp0.baidu.com/8aQDcjqpAAV3otqbppnN2DJv/api.php",
@@ -142,7 +142,7 @@ async def adage(request: Request):
 
 
 # 电影
-@app.get("/movie/", response_class=HTMLResponse)
+@app.get("/movie/", response_class=HTMLResponse, tags=["电影"])
 async def movie(request: Request):
     await log(request)
     meta = {
@@ -176,7 +176,7 @@ async def movie(request: Request):
 
 
 # 电影搜索
-@app.get('/movie/search', response_class=HTMLResponse)
+@app.get('/movie/search', response_class=HTMLResponse, tags=["电影"])
 async def movie_search(request: Request, keyword: Optional[str] = None):
     await log(request, **{"keyword":keyword})
     if not keyword: return {"code": 401, "msg": "请输入关键字"}
@@ -203,7 +203,7 @@ async def movie_search(request: Request, keyword: Optional[str] = None):
 
 
 # 音乐
-@app.get('/music/', response_class=HTMLResponse)
+@app.get('/music/', response_class=HTMLResponse, tags=["音乐"])
 async def music(request: Request, keyword: Optional[str] = "周杰伦"):
     await log(request, **{"keyword":keyword})
     meta = {
@@ -225,7 +225,7 @@ async def music(request: Request, keyword: Optional[str] = "周杰伦"):
 
 
 # 音乐下载
-@app.get('/music/download', response_class=JSONResponse)
+@app.get('/music/download', response_class=JSONResponse, tags=["音乐"])
 async def music_download(request: Request, singer: Optional[str] = None, song: Optional[str] = None,
                          tone: Optional[str] = None):
     await log(request, **{"singer": singer, "song": song, "tone": tone})

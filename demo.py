@@ -315,7 +315,7 @@ async def pub_http(**kwargs):
 
 
 # vip_parse_url = 'https://dmjx.m3u8.tv'
-
+# https://playm3u8.cn/
 
 # 腾讯视频搜索
 async def qq_video_search(**kwargs):

@@ -196,7 +196,6 @@ async def movie_search(request: Request, keyword: Optional[str] = None):
     result_list = []
     for r in result:
         if r: result_list += r
-
     if not result_list: return JSONResponse({"code": 402, "msg": "未找到相关资源！"})
     context = {"request": request, 'title': "电影", "url": "/movie/search", "result_list": result_list}
     return templates.TemplateResponse('search.html', context=context)
@@ -315,7 +314,7 @@ async def pub_http(**kwargs):
 
 
 # vip_parse_url = 'https://dmjx.m3u8.tv'
-# https://playm3u8.cn/
+
 
 # 腾讯视频搜索
 async def qq_video_search(**kwargs):
@@ -329,20 +328,23 @@ async def qq_video_search(**kwargs):
     }
     res = await pub_http(**meta)
     html = etree.HTML(res.decode())
-    divs = html.xpath('//div[@data-index]')
-    data_list = [{
-        "id": div.xpath('div/@data-id')[0],
-        "cover": "https:" + div.xpath('div/div[@class="_infos"]/div/a/img/@src')[0],
-        "name": "".join(div.xpath('div/div[@class="_infos"]/div/h2/a//text()')[:-1]).strip(),
-        "type": div.xpath('div/div[@class="_infos"]/div/h2/a/span[last()]/text()')[0],
-        "info": {x.xpath('span[1]/text()')[0].replace("\u3000", ""): "".join(x.xpath('span[2]//text()')).strip() for x
-                 in div.xpath('div/div[@class="_infos"]/div/div[@class="result_info"]/div') if
-                 x.xpath('span[1]/text()')},
-    } for div in divs]
-    tasks = [asyncio.create_task(qq_video_play_list(**{"id": t["id"]})) for t in data_list]
-    result = await asyncio.gather(*tasks)
-    data_list = [d | {"play_list": {"腾讯": t[d["id"]]}} for d in data_list for t in result if t and t.get(d["id"], "")]
-    return data_list
+    try:
+        divs = html.xpath('//div[@data-index]')
+        data_list = [{
+            "id": div.xpath('div/@data-id')[0],
+            "cover": "https:" + div.xpath('div/div[@class="_infos"]/div/a/img/@src')[0],
+            "name": "".join(div.xpath('div/div[@class="_infos"]/div/h2/a//text()')[:-1]).strip(),
+            "type": div.xpath('div/div[@class="_infos"]/div/h2/a/span[last()]/text()')[0],
+            "info": {x.xpath('span[1]/text()')[0].replace("\u3000", ""): "".join(x.xpath('span[2]//text()')).strip() for x
+                     in div.xpath('div/div[@class="_infos"]/div/div[@class="result_info"]/div') if
+                     x.xpath('span[1]/text()')},
+        } for div in divs]
+        tasks = [asyncio.create_task(qq_video_play_list(**{"id": t["id"]})) for t in data_list]
+        result = await asyncio.gather(*tasks)
+        data_list = [d | {"play_list": {"腾讯": t[d["id"]]}} for d in data_list for t in result if t and t.get(d["id"], "")]
+        return data_list
+    except Exception as e:
+        return None
 
 
 # 腾讯视频播放列表
@@ -413,22 +415,25 @@ async def yk_video_search(**kwargs):
     }
     res = await pub_http(**meta)
     if not res: return None
-    res = loads(res.decode())
-    data_list = [{
-        "id": r["commonData"].get("showId", ""),
-        "name": r["commonData"]["titleDTO"].get("displayName", ""),
-        "cover": r["commonData"]["posterDTO"].get("vThumbUrl", ""),
-        "type": r["commonData"].get("feature", ""),
-        "info": {
-            "简介": r["commonData"].get("desc", ""),
-            "更新": r["commonData"].get("updateNotice", ""),
-        }
-    } for r in res["pageComponentList"] if r.get("commonData", "")]
-    tasks = [asyncio.create_task(yk_video_play_list(**{"id": d.get("id", ""), "keyword": d.get("name", "")})) for d in
-             data_list]
-    result = await asyncio.gather(*tasks)
-    data_list = [d | {"play_list": t[d["id"]]} for d in data_list for t in result if t.get(d["id"], "")]
-    return data_list
+    try:
+        res = loads(res.decode())
+        data_list = [{
+            "id": r["commonData"].get("showId", ""),
+            "name": r["commonData"]["titleDTO"].get("displayName", ""),
+            "cover": r["commonData"]["posterDTO"].get("vThumbUrl", ""),
+            "type": r["commonData"].get("feature", ""),
+            "info": {
+                "简介": r["commonData"].get("desc", ""),
+                "更新": r["commonData"].get("updateNotice", ""),
+            }
+        } for r in res["pageComponentList"] if r.get("commonData", "")]
+        tasks = [asyncio.create_task(yk_video_play_list(**{"id": d.get("id", ""), "keyword": d.get("name", "")})) for d in
+                 data_list]
+        result = await asyncio.gather(*tasks)
+        data_list = [d | {"play_list": t[d["id"]]} for d in data_list for t in result if t.get(d["id"], "")]
+        return data_list
+    except Exception as e:
+        return None
 
 
 # 优酷视频播放列表
@@ -469,35 +474,38 @@ async def aqy_video_search(**kwargs):
     }
     res = await pub_http(**meta)
     if not res: return None
-    res = etree.HTML(res.decode()).xpath('//body/script[1]/text()')[0].split("__=")[1].split(";(")[0]
-    res = loads(res)
-    data_list = [
-        {
-            "id": r.get("qipu_id", "") if r.get("qipu_id", "") else r.get("docId", ""),
-            "name": r.get("title", ""),
-            "cover": r.get("albumImg", ""),
-            "type": r.get("channelName", ""),
-            "info": {
-                "分类": " ".join(r["video_lib_meta"].get("category", "")),
-                "区域": " ".join(r["video_lib_meta"].get("region", "")),
-                "主持人": r.get("star", ""),
-                "简介": r["video_lib_meta"].get("description", ""),
-                "发布时间": r["video_lib_meta"].get("start_update_time", ""),
-                "更新至": r["video_lib_meta"].get("filmtv_update_strategy", ""),
-                "更新时间": r.get("stragyTime", ""),
-            },
-            "play_list": [{
-                "name": v.get("itemTitle", ""),
-                "url": v.get("itemLink", ""),
-            } for v in r["videoinfos"] if r.get("videoinfos", "")]
-        } for r in res["search"]["searchResult"]["docs"] if r.get("siteId", "") == "iqiyi"]
-    tasks = [asyncio.create_task(aqy_video_play_list(**{"id": d.get("id", "")})) for d in
-             data_list]
-    result = await asyncio.gather(*tasks)
-    result = [r for r in result if r]
-    if result:
-        data_list = [d | {"play_list": t[d["id"]]} for d in data_list for t in result if t.get(d["id"], "")]
-    return data_list
+    try:
+        res = etree.HTML(res.decode()).xpath('//body/script[1]/text()')[0].split("__=")[1].split(";(")[0]
+        res = loads(res)
+        data_list = [
+            {
+                "id": r.get("qipu_id", "") if r.get("qipu_id", "") else r.get("docId", ""),
+                "name": r.get("title", ""),
+                "cover": r.get("albumImg", ""),
+                "type": r.get("channelName", ""),
+                "info": {
+                    "分类": " ".join(r["video_lib_meta"].get("category", "")),
+                    "区域": " ".join(r["video_lib_meta"].get("region", "")),
+                    "主持人": r.get("star", ""),
+                    "简介": r["video_lib_meta"].get("description", ""),
+                    "发布时间": r["video_lib_meta"].get("start_update_time", ""),
+                    "更新至": r["video_lib_meta"].get("filmtv_update_strategy", ""),
+                    "更新时间": r.get("stragyTime", ""),
+                },
+                "play_list": [{
+                    "name": v.get("itemTitle", ""),
+                    "url": v.get("itemLink", ""),
+                } for v in r["videoinfos"] if r.get("videoinfos", "")]
+            } for r in res["search"]["searchResult"]["docs"] if r.get("siteId", "") == "iqiyi"]
+        tasks = [asyncio.create_task(aqy_video_play_list(**{"id": d.get("id", "")})) for d in
+                 data_list]
+        result = await asyncio.gather(*tasks)
+        result = [r for r in result if r]
+        if result:
+            data_list = [d | {"play_list": t[d["id"]]} for d in data_list for t in result if t.get(d["id"], "")]
+        return data_list
+    except Exception as e:
+        return None
 
 
 # 爱奇艺播放列表
